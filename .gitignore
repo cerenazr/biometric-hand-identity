@@ -1,0 +1,7 @@
+data/
+hand_landmarker.task
+output/*.pkl
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
