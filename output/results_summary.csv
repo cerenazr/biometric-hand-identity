@@ -1,7 +1,16 @@
-Deney,Accuracy,Macro F1,EER,Best Params
+Deney,Accuracy,Macro F1,EER,Params
 SVM_tum,91.89%,89.67%,36.56%,"{'C': 100, 'gamma': 0.01}"
 MLP_tum,86.78%,83.32%,36.56%,-
+KNN_tum,72.04%,64.20%,36.56%,"{'k': 5, 'metric': 'euclidean'}"
+RF_tum,86.53%,82.66%,36.56%,{'n_estimators': 200}
+GB_tum,9.29%,8.43%,36.56%,{'max_iter': 200}
 SVM_dorsal,91.58%,88.53%,28.52%,"{'C': 100, 'gamma': 0.01}"
 MLP_dorsal,83.91%,78.78%,28.52%,-
+KNN_dorsal,73.04%,65.14%,28.52%,"{'k': 5, 'metric': 'euclidean'}"
+RF_dorsal,84.66%,79.52%,28.52%,{'n_estimators': 200}
+GB_dorsal,14.64%,12.45%,28.52%,{'max_iter': 200}
 SVM_palmar,93.03%,90.29%,27.49%,"{'C': 100, 'gamma': 'scale'}"
 MLP_palmar,88.24%,85.01%,27.49%,-
+KNN_palmar,77.22%,70.10%,27.49%,"{'k': 5, 'metric': 'euclidean'}"
+RF_palmar,89.05%,85.29%,27.49%,{'n_estimators': 200}
+GB_palmar,16.68%,13.47%,27.49%,{'max_iter': 200}

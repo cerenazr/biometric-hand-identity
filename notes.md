@@ -100,6 +100,43 @@
 
 ---
 
+## GELİŞTİRME 4 — Ek Modeller (KNN, Random Forest, Gradient Boosting)
+
+### Tam Sonuçlar (75 özellik)
+
+| Deney | SVM | MLP | KNN | RF | GB |
+|-------|-----|-----|-----|----|----|
+| Tüm veri — Accuracy | **91.89%** | 86.78% | 72.04% | 86.53% | 9.29%* |
+| Dorsal — Accuracy | **91.58%** | 83.91% | 73.04% | 84.66% | 14.64%* |
+| Palmar — Accuracy | **93.03%** | 88.24% | 77.22% | **89.05%** | 16.68%* |
+| Tüm veri — EER | 36.56% | 36.56% | 36.56% | 36.56% | 36.56% |
+| Dorsal — EER | 28.52% | 28.52% | 28.52% | 28.52% | 28.52% |
+| Palmar — EER | **27.49%** | 27.49% | 27.49% | 27.49% | 27.49% |
+
+*GB sonuçları geçersiz — bkz. aşağıdaki not.
+
+### Model Sıralaması (Palmar, 75 özellik)
+
+1. **SVM — %93.03** (en iyi)
+2. **RF — %89.05**
+3. **MLP — %88.24**
+4. **KNN — %77.22**
+5. ~~GB — %16.68~~ (underfitting)
+
+### Gradient Boosting Neden Başarısız?
+
+`HistGradientBoostingClassifier` ile 184 sınıflı bir problemde her sınıf için ayrı bir ikili sınıflandırıcı (OvR) eğitilir. `max_iter=200` bu ölçekte yeterli değil; model yakınsayamadan durdu. Düzeltmek için `max_iter=1000+` gerekir ancak hesaplama süresi çok uzar. Raporda "GB bu parametrelerle yakınsamadı, dışarıda bırakıldı" olarak belirtilecek.
+
+### EER Neden Tüm Modellerde Aynı?
+
+EER hesabı, sınıflandırıcının kendi çıktısını değil, **centroid tabanlı Euclidean mesafeyi** kullanıyor. Bu nedenle aynı veri bölümünde tüm modeller aynı EER'i paylaşıyor. Bu tutarlı bir tasarım seçimi — EER verinin ne kadar ayırt edici olduğunu ölçüyor, modelin ne kadar iyi olduğunu değil.
+
+### Random Forest Özellik Önemi (Öne Çıkan Bulgular)
+
+RF modelinden çıkan `feat_importance_RF_palmar.png` grafiğine göre en ayırt edici özellikler ham landmark koordinatları (Grup 7) — özellikle orta parmak ve yüzük parmağı MCP bölgesi. Bu, Geliştirme 1'in (ham koordinat ekleme) neden bu kadar büyük etki yaptığını açıklıyor.
+
+---
+
 ## GELİŞTİRMELERİN ETKİSİ — RAPOR İÇİN ANALİZ
 
 ### Ham Landmark Eklemenin Etkisi (33 → 75 özellik)

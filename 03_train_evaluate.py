@@ -1,13 +1,17 @@
 """
 03_train_evaluate.py
 --------------------
-features.csv'yi yukler, asagidaki deneyleri calistirir:
+5 model x 3 veri senaryosu (tum / dorsal / palmar):
+  - SVM (GridSearchCV), MLP, KNN, Random Forest, Gradient Boosting
 
-  Deney 1 — Tam veri : SVM (GridSearchCV) + MLP
-  Deney 2 — Dorsal   : SVM (GridSearchCV) + MLP
-  Deney 3 — Palmar   : SVM (GridSearchCV) + MLP
+Her deney icin uretilen grafikler:
+  1. Confusion Matrix
+  2. FAR/FRR Egrisi
+  3. Genuine vs Impostor Skor Dagilimi
+  4. Ozellik Onemi (Random Forest)  ← yalnizca RF modeli icin
 
-Her deney icin: Accuracy, Macro F1, FAR, FRR, EER, Confusion Matrix, FAR/FRR grafigi.
+Son olarak:
+  5. Model Karsilastirma Bar Chart (tum sonuclari yan yana)
 
 Calistirma: python 03_train_evaluate.py
 """
@@ -26,6 +30,8 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 
 # ---------------------------------------------------------------------------
@@ -35,8 +41,7 @@ BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR   = os.path.join(BASE_DIR, "output")
 PLOTS_DIR    = os.path.join(OUTPUT_DIR, "plots")
 FEATURES_CSV = os.path.join(OUTPUT_DIR, "features.csv")
-DATA_DIR     = os.path.join(BASE_DIR, "data", "11k_hands")
-HANDINFO_CSV = os.path.join(DATA_DIR, "HandInfo.csv")
+HANDINFO_CSV = os.path.join(BASE_DIR, "data", "11k_hands", "HandInfo.csv")
 
 os.makedirs(PLOTS_DIR, exist_ok=True)
 
@@ -49,10 +54,6 @@ RANDOM_STATE          = 42
 # ---------------------------------------------------------------------------
 
 def load_data(aspect_filter=None):
-    """
-    features.csv'yi yukler.
-    aspect_filter: None (tumü) | 'dorsal' | 'palmar'
-    """
     df = pd.read_csv(FEATURES_CSV)
 
     if aspect_filter:
@@ -72,7 +73,7 @@ def load_data(aspect_filter=None):
     feature_cols = [c for c in df.columns if c not in ("image_name", "subject_id")]
     X = df[feature_cols].values.astype(float)
     y = LabelEncoder().fit_transform(df["subject_id"].values)
-    return X, y
+    return X, y, feature_cols
 
 
 def split_and_scale(X, y):
@@ -86,57 +87,66 @@ def split_and_scale(X, y):
 
 
 # ---------------------------------------------------------------------------
-# 2. SVM — GridSearchCV
+# 2. Model egitim fonksiyonlari
 # ---------------------------------------------------------------------------
 
 def train_svm(X_train, y_train):
-    print("  SVM GridSearchCV basliyor (C x gamma x cv=3)...")
-    param_grid = {
-        "C":     [1, 10, 100],
-        "gamma": ["scale", 0.01, 0.001],
-    }
+    print("  SVM GridSearchCV (C x gamma, cv=3)...")
     gs = GridSearchCV(
         SVC(kernel="rbf", probability=True, random_state=RANDOM_STATE,
             decision_function_shape="ovr"),
-        param_grid,
-        cv=3,
-        scoring="accuracy",
-        n_jobs=-1,
-        verbose=0,
+        {"C": [1, 10, 100], "gamma": ["scale", 0.01, 0.001]},
+        cv=3, scoring="accuracy", n_jobs=-1, verbose=0,
     )
     gs.fit(X_train, y_train)
-    print(f"  En iyi parametreler: {gs.best_params_}  |  CV accuracy: {gs.best_score_*100:.2f}%")
+    print(f"  En iyi: {gs.best_params_}  CV acc: {gs.best_score_*100:.2f}%")
     return gs.best_estimator_, gs.best_params_
 
 
-# ---------------------------------------------------------------------------
-# 3. MLP
-# ---------------------------------------------------------------------------
-
 def train_mlp(X_train, y_train):
-    print("  MLP egitiliyor (256-128-64)...")
+    print("  MLP (256-128-64, adam)...")
     model = MLPClassifier(
-        hidden_layer_sizes=(256, 128, 64),
-        activation="relu",
-        solver="adam",
-        alpha=0.001,
-        batch_size=64,
-        learning_rate="adaptive",
-        learning_rate_init=0.001,
-        max_iter=300,
-        early_stopping=True,
-        validation_fraction=0.1,
-        n_iter_no_change=20,
-        random_state=RANDOM_STATE,
-        verbose=False,
+        hidden_layer_sizes=(256, 128, 64), activation="relu", solver="adam",
+        alpha=0.001, batch_size=64, learning_rate="adaptive",
+        learning_rate_init=0.001, max_iter=300,
+        early_stopping=True, validation_fraction=0.1, n_iter_no_change=20,
+        random_state=RANDOM_STATE, verbose=False,
     )
     model.fit(X_train, y_train)
-    print(f"  MLP tamamlandi. ({model.n_iter_} iterasyon)")
-    return model
+    print(f"  MLP tamamlandi ({model.n_iter_} iter)")
+    return model, None
+
+
+def train_knn(X_train, y_train):
+    print("  KNN (k=5, euclidean)...")
+    model = KNeighborsClassifier(n_neighbors=5, metric="euclidean", n_jobs=-1)
+    model.fit(X_train, y_train)
+    print("  KNN tamamlandi")
+    return model, {"k": 5, "metric": "euclidean"}
+
+
+def train_rf(X_train, y_train):
+    print("  Random Forest (200 agac)...")
+    model = RandomForestClassifier(
+        n_estimators=200, random_state=RANDOM_STATE, n_jobs=-1
+    )
+    model.fit(X_train, y_train)
+    print("  RF tamamlandi")
+    return model, {"n_estimators": 200}
+
+
+def train_gb(X_train, y_train):
+    print("  Gradient Boosting (HistGB, 200 iter)...")
+    model = HistGradientBoostingClassifier(
+        max_iter=200, random_state=RANDOM_STATE
+    )
+    model.fit(X_train, y_train)
+    print("  GB tamamlandi")
+    return model, {"max_iter": 200}
 
 
 # ---------------------------------------------------------------------------
-# 4. FAR / FRR / EER — Centroid tabanli
+# 3. FAR / FRR / EER — skor dagilimini da dondurur
 # ---------------------------------------------------------------------------
 
 def compute_far_frr(X_train, y_train, X_test, y_test, n_thresholds=500):
@@ -145,13 +155,11 @@ def compute_far_frr(X_train, y_train, X_test, y_test, n_thresholds=500):
     classes   = np.unique(y_train)
     centroids = {c: X_train[y_train == c].mean(axis=0) for c in classes}
 
-    genuine_scores  = []
-    impostor_scores = []
-
+    genuine_scores, impostor_scores = [], []
     rng = np.random.default_rng(RANDOM_STATE)
+
     for i in range(len(X_test)):
-        probe      = X_test[i]
-        true_label = y_test[i]
+        probe, true_label = X_test[i], y_test[i]
         if true_label not in centroids:
             continue
         genuine_scores.append(-euclidean(probe, centroids[true_label]))
@@ -172,11 +180,11 @@ def compute_far_frr(X_train, y_train, X_test, y_test, n_thresholds=500):
     eer     = (far_vals[idx] + frr_vals[idx]) / 2.0
     eer_thr = thresholds[idx]
 
-    return thresholds, far_vals, frr_vals, eer, eer_thr
+    return thresholds, far_vals, frr_vals, eer, eer_thr, genuine_scores, impostor_scores
 
 
 # ---------------------------------------------------------------------------
-# 5. Grafikler
+# 4. Grafik fonksiyonlari
 # ---------------------------------------------------------------------------
 
 def plot_confusion_matrix(y_test, y_pred, tag, top_n=25):
@@ -189,68 +197,169 @@ def plot_confusion_matrix(y_test, y_pred, tag, top_n=25):
     sns.heatmap(cm, annot=(top_n <= 20), fmt="d", cmap="Blues",
                 xticklabels=top_classes, yticklabels=top_classes,
                 ax=ax, linewidths=0.3)
-    ax.set_xlabel("Tahmin Edilen Sinif", fontsize=12)
-    ax.set_ylabel("Gercek Sinif", fontsize=12)
-    ax.set_title(f"Confusion Matrix — {tag} (Top {top_n})", fontsize=14)
+    ax.set_xlabel("Tahmin Edilen", fontsize=11)
+    ax.set_ylabel("Gercek", fontsize=11)
+    ax.set_title(f"Confusion Matrix — {tag} (Top {top_n})", fontsize=13)
     plt.tight_layout()
-    path = os.path.join(PLOTS_DIR, f"confusion_matrix_{tag}.png")
-    plt.savefig(path, dpi=150)
-    plt.close()
-    print(f"    -> {path}")
+    path = os.path.join(PLOTS_DIR, f"cm_{tag}.png")
+    plt.savefig(path, dpi=150); plt.close()
+    print(f"    [grafik] {os.path.basename(path)}")
 
 
 def plot_far_frr(thresholds, far, frr, eer, eer_thr, tag):
     fig, ax = plt.subplots(figsize=(9, 6))
-    ax.plot(thresholds, far, color="red",  linewidth=2, label="FAR")
-    ax.plot(thresholds, frr, color="blue", linewidth=2, label="FRR")
+    ax.plot(thresholds, far, color="red",  linewidth=2, label="FAR (Yanlis Kabul)")
+    ax.plot(thresholds, frr, color="blue", linewidth=2, label="FRR (Yanlis Red)")
     ax.axvline(eer_thr, color="green", linestyle="--", linewidth=1.5,
                label=f"EER = {eer*100:.2f}%")
-    ax.set_xlabel("Esik Degeri", fontsize=12)
-    ax.set_ylabel("Hata Orani", fontsize=12)
-    ax.set_title(f"FAR & FRR — {tag}", fontsize=14)
-    ax.legend(fontsize=11)
-    ax.grid(True, alpha=0.4)
+    ax.set_xlabel("Esik Degeri", fontsize=11)
+    ax.set_ylabel("Hata Orani", fontsize=11)
+    ax.set_title(f"FAR & FRR — {tag}", fontsize=13)
+    ax.legend(fontsize=10); ax.grid(True, alpha=0.4)
     plt.tight_layout()
     path = os.path.join(PLOTS_DIR, f"far_frr_{tag}.png")
-    plt.savefig(path, dpi=150)
-    plt.close()
-    print(f"    -> {path}")
+    plt.savefig(path, dpi=150); plt.close()
+    print(f"    [grafik] {os.path.basename(path)}")
+
+
+def plot_score_distribution(genuine_scores, impostor_scores, eer_thr, tag):
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.hist(impostor_scores, bins=60, alpha=0.55, color="red",
+            label="Impostor (Sahte)", density=True)
+    ax.hist(genuine_scores,  bins=60, alpha=0.55, color="blue",
+            label="Genuine (Gercek)", density=True)
+    ax.axvline(eer_thr, color="green", linestyle="--", linewidth=1.5,
+               label=f"EER Esigi = {eer_thr:.3f}")
+    ax.set_xlabel("Skor (Negatif Uzaklik)", fontsize=11)
+    ax.set_ylabel("Yogunluk", fontsize=11)
+    ax.set_title(f"Genuine vs Impostor Skor Dagilimi — {tag}", fontsize=13)
+    ax.legend(fontsize=10); ax.grid(True, alpha=0.4)
+    plt.tight_layout()
+    path = os.path.join(PLOTS_DIR, f"score_dist_{tag}.png")
+    plt.savefig(path, dpi=150); plt.close()
+    print(f"    [grafik] {os.path.basename(path)}")
+
+
+def plot_feature_importance(model, feature_names, tag, top_n=20):
+    importances = model.feature_importances_
+    indices     = np.argsort(importances)[::-1][:top_n]
+    top_names   = [feature_names[i] for i in indices]
+    top_vals    = importances[indices]
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    bars = ax.barh(range(top_n), top_vals[::-1], color="steelblue", edgecolor="white")
+    ax.set_yticks(range(top_n))
+    ax.set_yticklabels(top_names[::-1], fontsize=9)
+    ax.set_xlabel("Ozellik Onemi (Gini)", fontsize=11)
+    ax.set_title(f"Top {top_n} Ozellik Onemi — {tag}", fontsize=13)
+    ax.grid(True, axis="x", alpha=0.4)
+    plt.tight_layout()
+    path = os.path.join(PLOTS_DIR, f"feat_importance_{tag}.png")
+    plt.savefig(path, dpi=150); plt.close()
+    print(f"    [grafik] {os.path.basename(path)}")
+
+
+def plot_model_comparison(results):
+    df = pd.DataFrame(results)
+    df["Acc_val"] = df["Accuracy"].str.rstrip("%").astype(float)
+    df["EER_val"] = df["EER"].str.rstrip("%").astype(float)
+
+    aspects = ["tum", "dorsal", "palmar"]
+    model_names = ["SVM", "MLP", "KNN", "RF", "GB"]
+    colors = ["#2196F3", "#FF5722", "#4CAF50", "#9C27B0", "#FF9800"]
+    x      = np.arange(len(aspects))
+    width  = 0.15
+
+    # --- Accuracy bar chart ---
+    fig, ax = plt.subplots(figsize=(13, 7))
+    for i, (mname, color) in enumerate(zip(model_names, colors)):
+        vals = []
+        for asp in aspects:
+            row = df[df["Deney"] == f"{mname}_{asp}"]
+            vals.append(row["Acc_val"].values[0] if len(row) else 0)
+        offset = (i - 2) * width
+        bars = ax.bar(x + offset, vals, width, label=mname, color=color, edgecolor="white")
+        for bar, v in zip(bars, vals):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.3,
+                    f"{v:.1f}", ha="center", va="bottom", fontsize=7.5)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(["Tum Veri", "Dorsal", "Palmar"], fontsize=12)
+    ax.set_ylabel("Accuracy (%)", fontsize=12)
+    ax.set_title("Model Karsilastirmasi — Accuracy", fontsize=14)
+    ax.legend(title="Model", fontsize=10)
+    ax.set_ylim(60, 100)
+    ax.grid(True, axis="y", alpha=0.4)
+    plt.tight_layout()
+    path = os.path.join(PLOTS_DIR, "comparison_accuracy.png")
+    plt.savefig(path, dpi=150); plt.close()
+    print(f"    [grafik] {os.path.basename(path)}")
+
+    # --- EER bar chart ---
+    fig, ax = plt.subplots(figsize=(13, 7))
+    for i, (mname, color) in enumerate(zip(model_names, colors)):
+        vals = []
+        for asp in aspects:
+            row = df[df["Deney"] == f"{mname}_{asp}"]
+            vals.append(row["EER_val"].values[0] if len(row) else 0)
+        offset = (i - 2) * width
+        bars = ax.bar(x + offset, vals, width, label=mname, color=color, edgecolor="white")
+        for bar, v in zip(bars, vals):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.3,
+                    f"{v:.1f}", ha="center", va="bottom", fontsize=7.5)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(["Tum Veri", "Dorsal", "Palmar"], fontsize=12)
+    ax.set_ylabel("EER (%)", fontsize=12)
+    ax.set_title("Model Karsilastirmasi — EER (dusuk = iyi)", fontsize=14)
+    ax.legend(title="Model", fontsize=10)
+    ax.grid(True, axis="y", alpha=0.4)
+    plt.tight_layout()
+    path = os.path.join(PLOTS_DIR, "comparison_eer.png")
+    plt.savefig(path, dpi=150); plt.close()
+    print(f"    [grafik] {os.path.basename(path)}")
 
 
 # ---------------------------------------------------------------------------
-# 6. Tek deney (model + metrikler + grafikler)
+# 5. Tek deney
 # ---------------------------------------------------------------------------
 
-def run_experiment(tag, model, best_params, X_train, y_train, X_test, y_test, scaler):
+def run_experiment(tag, model, best_params, X_train, y_train, X_test, y_test,
+                   scaler, feature_names=None):
     print(f"\n  --- {tag} ---")
     y_pred   = model.predict(X_test)
     acc      = accuracy_score(y_test, y_pred)
     macro_f1 = f1_score(y_test, y_pred, average="macro", zero_division=0)
 
-    thresholds, far, frr, eer, eer_thr = compute_far_frr(
+    thresholds, far, frr, eer, eer_thr, gen_sc, imp_sc = compute_far_frr(
         X_train, y_train, X_test, y_test
     )
     idx_eer = np.argmin(np.abs(thresholds - eer_thr))
 
     print(f"    Accuracy : {acc*100:.2f}%")
     print(f"    Macro F1 : {macro_f1*100:.2f}%")
-    print(f"    EER      : {eer*100:.2f}%  (FAR={far[idx_eer]*100:.2f}%, FRR={frr[idx_eer]*100:.2f}%)")
-    if best_params:
-        print(f"    Params   : {best_params}")
+    print(f"    EER      : {eer*100:.2f}%  "
+          f"(FAR={far[idx_eer]*100:.2f}%, FRR={frr[idx_eer]*100:.2f}%)")
 
+    # Grafikler
     plot_confusion_matrix(y_test, y_pred, tag)
     plot_far_frr(thresholds, far, frr, eer, eer_thr, tag)
+    plot_score_distribution(gen_sc, imp_sc, eer_thr, tag)
 
+    if feature_names and hasattr(model, "feature_importances_"):
+        plot_feature_importance(model, feature_names, tag)
+
+    # Kaydet
     pkl_path = os.path.join(OUTPUT_DIR, f"{tag}_model.pkl")
     with open(pkl_path, "wb") as f:
         pickle.dump({"model": model, "scaler": scaler}, f)
 
     return {
-        "Deney": tag,
-        "Accuracy": f"{acc*100:.2f}%",
-        "Macro F1": f"{macro_f1*100:.2f}%",
-        "EER": f"{eer*100:.2f}%",
-        "Best Params": str(best_params) if best_params else "-",
+        "Deney":     tag,
+        "Accuracy":  f"{acc*100:.2f}%",
+        "Macro F1":  f"{macro_f1*100:.2f}%",
+        "EER":       f"{eer*100:.2f}%",
+        "Params":    str(best_params) if best_params else "-",
     }
 
 
@@ -266,13 +375,21 @@ def main():
     np.random.seed(RANDOM_STATE)
     results = []
 
+    trainers = [
+        ("SVM", train_svm),
+        ("MLP", train_mlp),
+        ("KNN", train_knn),
+        ("RF",  train_rf),
+        ("GB",  train_gb),
+    ]
+
     for aspect in [None, "dorsal", "palmar"]:
         label = aspect if aspect else "tum"
         print(f"\n{'='*60}")
         print(f"  DENEY: {label.upper()}")
         print(f"{'='*60}")
 
-        X, y = load_data(aspect_filter=aspect)
+        X, y, feature_cols = load_data(aspect_filter=aspect)
         if len(np.unique(y)) < 2:
             print("  Yeterli sinif yok, atlaniyor.")
             continue
@@ -280,29 +397,29 @@ def main():
         X_train, X_test, y_train, y_test, scaler = split_and_scale(X, y)
         print(f"  Egitim: {len(X_train)} | Test: {len(X_test)} | Ozellik: {X.shape[1]}")
 
-        # SVM + GridSearchCV
-        svm, best_params = train_svm(X_train, y_train)
-        results.append(run_experiment(
-            f"SVM_{label}", svm, best_params, X_train, y_train, X_test, y_test, scaler
-        ))
-
-        # MLP
-        mlp = train_mlp(X_train, y_train)
-        results.append(run_experiment(
-            f"MLP_{label}", mlp, None, X_train, y_train, X_test, y_test, scaler
-        ))
+        for mname, train_fn in trainers:
+            model, params = train_fn(X_train, y_train)
+            tag = f"{mname}_{label}"
+            fn = feature_cols if mname == "RF" else None
+            results.append(run_experiment(
+                tag, model, params, X_train, y_train, X_test, y_test, scaler, fn
+            ))
 
     # Ozet tablo
     print(f"\n{'='*60}")
     print("  OZET TABLO")
     print(f"{'='*60}")
     df_res = pd.DataFrame(results)
-    print(df_res.to_string(index=False))
+    print(df_res[["Deney", "Accuracy", "Macro F1", "EER"]].to_string(index=False))
+
+    # Karsilastirma grafikleri
+    print("\nKarsilastirma grafikleri olusturuluyor...")
+    plot_model_comparison(results)
 
     csv_path = os.path.join(OUTPUT_DIR, "results_summary.csv")
     df_res.to_csv(csv_path, index=False)
-    print(f"\nSonuclar kaydedildi: {csv_path}")
-    print(f"Grafikler          : {PLOTS_DIR}")
+    print(f"\nSonuclar: {csv_path}")
+    print(f"Grafikler: {PLOTS_DIR}")
 
 
 if __name__ == "__main__":
