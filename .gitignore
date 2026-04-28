@@ -1,6 +1,8 @@
 data/
 hand_landmarker.task
 output/*.pkl
+output/features.csv
+output/features_failed.txt
 __pycache__/
 *.pyc
 *.pyo
