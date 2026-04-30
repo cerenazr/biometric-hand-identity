@@ -234,9 +234,11 @@ Tüm veri setinde baseline %78.85 → %82.41 (+3.56 puan). GridSearchCV gamma i�
 
 **Gözlem:** Backbone açıldıktan sonra (epoch 6+) test accuracy hızla tırmanıyor. Rank-1 %99.81, EER %0.13 — literatür referansını (%96.8 Rank-1, %5.49 EER) önemli ölçüde geçti. Fine-tuning stratejisinin (ilk 5 epoch dondur, sonra aç) çok etkili olduğu görülüyor.
 
+> **Not:** 2. çalıştırmada (05_deep_learning_colab.ipynb) Accuracy %96.89, EER %0.12 çıktı — farklı random seed nedeniyle küçük sapma, Rank-1 %99.81 aynı kaldı.
+
 ---
 
-### ABD-Net — Palmar (30.04.2026) — *(devam ediyor)*
+### ABD-Net — Palmar (30.04.2026)
 
 **Mimari:** ChannelAttention + SpatialAttention (CBAM) + Diversity Loss (ortogonallik kısıtı, lambda=1e-3)
 
@@ -246,7 +248,7 @@ Tüm veri setinde baseline %78.85 → %82.41 (+3.56 puan). GridSearchCV gamma i�
 | Eğitim / Test | 3750 / 1608 |
 | Parametre sayısı | 26,233,178 |
 
-**Epoch Geçmişi (kısmi):**
+**Epoch Geçmişi:**
 
 | Epoch | Loss | Train Acc | Test Acc |
 |-------|------|-----------|----------|
@@ -255,8 +257,84 @@ Tüm veri setinde baseline %78.85 → %82.41 (+3.56 puan). GridSearchCV gamma i�
 | 3 | 5.3776 | 45.36% | 52.49% |
 | 4 | 5.2742 | 54.85% | 56.72% |
 | 5 | 5.1889 | 59.28% | 59.83% |
-| *6 (backbone açıldı)* | 5.0870 | 59.33% | 66.92% |
-| 7 | 4.9255 | 78.08% | 84.76% |
+| *6 (backbone açıldı)* | 5.0879 | 58.93% | 68.28% |
+| 7 | 4.9263 | 78.16% | 83.58% |
+| 8 | 4.7947 | 88.35% | 90.49% |
+| 9 | 4.6792 | 93.92% | 95.02% |
+| 10 | 4.5793 | 97.17% | 96.64% |
+| 11 | 4.5077 | 98.56% | 98.13% |
+| 12 | 4.4649 | 99.15% | 98.38% |
+| 13 | 4.4247 | 99.55% | 98.76% |
+| 14 | 4.3868 | 99.60% | 98.94% |
+| 15 | 4.3499 | 99.79% | 99.25% |
+| 16 | 4.3140 | 99.92% | 99.44% |
+| 17 | 4.2787 | 99.87% | 99.38% |
+| 18 | 4.2450 | 99.97% | 99.50% |
+| 19 | 4.2117 | 99.97% | 99.56% |
+| 20 | 4.1782 | 100.00% | 99.50% |
+| 21 | 4.1526 | 100.00% | 99.69% |
+| 22 | 4.1358 | 100.00% | 99.69% |
+| 23 | 4.1199 | 100.00% | 99.63% |
+| 24 | 4.1036 | 100.00% | 99.69% |
+| 25 | 4.0881 | 100.00% | 99.69% |
+| 26 | 4.0720 | 100.00% | 99.69% |
+| 27 | 4.0567 | 100.00% | 99.63% |
+| 28 | 4.0406 | 100.00% | 99.69% |
+| 29 | 4.0253 | 99.97% | 99.69% |
+| **30** | **4.0106** | **100.00%** | **99.69%** |
+
+**Sonuçlar:**
+
+| Metrik | Değer |
+|--------|-------|
+| **Rank-1** | **99.88%** |
+| **Accuracy** | **99.69%** |
+| **EER** | **0.01%** |
+
+**Gözlem:** Tüm modeller içinde en yüksek performans. Epoch 20'den itibaren train accuracy %100, test accuracy %99.69'da sabitlendi. EER %0.01 pratikte sıfır hata anlamına geliyor. Diversity loss'un iki branch'i birbirinden farklı özellikler öğrenmeye zorlaması çok etkili olmuş.
+
+---
+
+### RGA-Net — Palmar (30.04.2026) — *(devam ediyor, epoch 21'de)*
+
+**Mimari:** RGAModule (uzamsal öz-ilişki matrisi) layer3 + layer4 sonrasına eklendi
+
+| Parametre | Değer |
+|-----------|-------|
+| Sınıf sayısı | 184 |
+| Eğitim / Test | 3750 / 1608 |
+| Parametre sayısı | 35,147,512 |
+
+**Epoch Geçmişi (kısmi):**
+
+| Epoch | Loss | Train Acc | Test Acc |
+|-------|------|-----------|----------|
+| 1 | 5.2399 | 2.83% | 14.93% |
+| 2 | 5.2007 | 17.12% | 33.21% |
+| 3 | 5.1578 | 31.41% | 44.90% |
+| 4 | 5.1214 | 39.68% | 50.06% |
+| 5 | 5.0847 | 46.13% | 52.24% |
+| *6 (backbone açıldı)* | 5.0141 | 42.91% | 51.55% |
+| 7 | 4.8886 | 62.24% | 70.90% |
+| 8 | 4.7829 | 76.19% | 80.78% |
+| 9 | 4.6864 | 84.77% | 88.31% |
+| 10 | 4.6011 | 90.72% | 91.48% |
+| 11 | 4.5373 | 93.81% | 93.10% |
+| 12 | 4.4985 | 94.53% | 94.15% |
+| 13 | 4.4620 | 96.59% | 95.65% |
+| 14 | 4.4275 | 97.31% | 96.33% |
+| 15 | 4.3946 | 97.81% | 97.26% |
+| 16 | 4.3613 | 98.27% | 97.70% |
+| 17 | 4.3300 | 98.96% | 98.26% |
+| 18 | 4.2998 | 99.31% | 98.76% |
+| 19 | 4.2697 | 99.33% | 98.82% |
+| 20 | 4.2394 | 99.47% | 99.13% |
+| 21 | 4.2149 | 99.79% | 99.19% |
+| 22–30 | — | — | *(devam ediyor)* |
+
+**Gözlem (erken):** En fazla parametreye sahip model (35M). MBA-Net'ten daha yavaş başlangıç ama epoch 21'de %99.19 test — ABD-Net seviyesine yaklaşıyor. Sonuçlar tamamlanınca güncellenecek.
+
+---
 | 8 | 4.7947 | 88.35% | 91.23% |
 | 9 | 4.6785 | 94.03% | 94.65% |
 | 10 | 4.5786 | 97.28% | 96.58% |
