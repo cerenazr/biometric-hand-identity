@@ -169,6 +169,103 @@ Tüm veri setinde baseline %78.85 → %82.41 (+3.56 puan). GridSearchCV gamma i�
 
 ---
 
+## DERİN ÖĞRENME — MBA-Net, ABD-Net, RGA-Net (Google Colab T4 GPU)
+
+**Dosya:** `05_deep_learning_colab.ipynb`
+**Mimari:** ResNet-50 backbone (ImageNet pretrained) + dikkat mekanizmaları
+**Kayıp:** CrossEntropyLoss + TripletLoss (margin=0.3, weight=0.5)
+**Optimizer:** Adam (lr=1e-4, weight_decay=5e-4), StepLR (step=10, gamma=0.5)
+**Eğitim:** 30 epoch, ilk 5 epoch backbone donduruldu, Batch=64, IMG=224×224
+
+---
+
+### MBA-Net — Palmar (30.04.2026)
+
+**Mimari:** SEBlock + Global Branch (GAP→BN→Dropout→FC) + Local Branch (4 yatay şerit→concat) + L2-normalize
+
+| Parametre | Değer |
+|-----------|-------|
+| Sınıf sayısı | 184 |
+| Eğitim / Test | 3750 / 1608 |
+| Parametre sayısı | 26,324,216 |
+
+**Epoch Geçmişi:**
+
+| Epoch | Loss | Train Acc | Test Acc |
+|-------|------|-----------|----------|
+| 1 | 5.2370 | 5.39% | 25.81% |
+| 2 | 5.1933 | 28.61% | 47.89% |
+| 3 | 5.1539 | 42.75% | 54.66% |
+| 4 | 5.1122 | 51.36% | 58.71% |
+| 5 | 5.0704 | 55.89% | 61.50% |
+| *6 (backbone açıldı)* | 4.9942 | 50.91% | 62.44% |
+| 7 | 4.8724 | 65.12% | 70.40% |
+| 8 | 4.7725 | 75.71% | 81.90% |
+| 9 | 4.6799 | 82.64% | 85.07% |
+| 10 | 4.5932 | 86.67% | 88.25% |
+| 11 | 4.5289 | 89.92% | 89.24% |
+| 12 | 4.4883 | 90.59% | 90.24% |
+| 13 | 4.4502 | 91.84% | 91.54% |
+| 14 | 4.4120 | 92.80% | 92.66% |
+| 15 | 4.3743 | 93.36% | 93.41% |
+| 16 | 4.3392 | 94.48% | 93.91% |
+| 17 | 4.3032 | 95.01% | 94.28% |
+| 18 | 4.2675 | 95.49% | 95.27% |
+| 19 | 4.2329 | 95.81% | 95.52% |
+| 20 | 4.1991 | 96.37% | 96.02% |
+| 21 | 4.1712 | 97.09% | 96.14% |
+| 22 | 4.1539 | 97.44% | 96.21% |
+| 23 | 4.1374 | 97.04% | 96.58% |
+| 24 | 4.1199 | 97.17% | 96.39% |
+| 25 | 4.1040 | 97.28% | 96.46% |
+| 26 | 4.0865 | 97.71% | 96.83% |
+| 27 | 4.0703 | 97.63% | 96.39% |
+| 28 | 4.0546 | 97.73% | 96.52% |
+| 29 | 4.0379 | 97.89% | 96.70% |
+| **30** | **4.0217** | **97.89%** | **97.26%** |
+
+**Sonuçlar:**
+
+| Metrik | Değer |
+|--------|-------|
+| **Rank-1** | **99.81%** |
+| Accuracy | 97.26% |
+| **EER** | **0.13%** |
+
+**Gözlem:** Backbone açıldıktan sonra (epoch 6+) test accuracy hızla tırmanıyor. Rank-1 %99.81, EER %0.13 — literatür referansını (%96.8 Rank-1, %5.49 EER) önemli ölçüde geçti. Fine-tuning stratejisinin (ilk 5 epoch dondur, sonra aç) çok etkili olduğu görülüyor.
+
+---
+
+### ABD-Net — Palmar (30.04.2026) — *(devam ediyor)*
+
+**Mimari:** ChannelAttention + SpatialAttention (CBAM) + Diversity Loss (ortogonallik kısıtı, lambda=1e-3)
+
+| Parametre | Değer |
+|-----------|-------|
+| Sınıf sayısı | 184 |
+| Eğitim / Test | 3750 / 1608 |
+| Parametre sayısı | 26,233,178 |
+
+**Epoch Geçmişi (kısmi):**
+
+| Epoch | Loss | Train Acc | Test Acc |
+|-------|------|-----------|----------|
+| 1 | 5.6815 | 7.87% | 22.64% |
+| 2 | 5.5070 | 30.53% | 41.48% |
+| 3 | 5.3776 | 45.36% | 52.49% |
+| 4 | 5.2742 | 54.85% | 56.72% |
+| 5 | 5.1889 | 59.28% | 59.83% |
+| *6 (backbone açıldı)* | 5.0870 | 59.33% | 66.92% |
+| 7 | 4.9255 | 78.08% | 84.76% |
+| 8 | 4.7947 | 88.35% | 91.23% |
+| 9 | 4.6785 | 94.03% | 94.65% |
+| 10 | 4.5786 | 97.28% | 96.58% |
+| 11–30 | — | — | *(devam ediyor)* |
+
+**Gözlem (erken):** Epoch 7-8'de MBA-Net'ten daha hızlı yükseliş — CBAM dikkat mekanizması backbone açıldıktan sonra çok hızlı öğreniyor. Epoch 10'da zaten %96.58 test accuracy.
+
+---
+
 ## YÖNTEM NOTLARI
 
 ### MediaPipe Landmark Düzeni
