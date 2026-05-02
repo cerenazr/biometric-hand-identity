@@ -1,198 +1,224 @@
-# Hand Geometry Biometric Recognition
+# El Geometrisi ile Biyometrik Kimlik Tanıma
 
-Biometric identity recognition system using hand geometry. Hand landmarks are extracted with **MediaPipe**, geometric features are engineered, and identity classification is performed using **SVM** and **MLP** classifiers. The system is evaluated with biometric metrics: Accuracy, FAR, FRR, and EER.
+Mediapipe tabanlı el iskelet çıkarımı, geometrik özellik mühendisliği ve makine öğrenmesi / derin öğrenme modelleriyle kişi kimliği doğrulama sistemi. Geleneksel ML yöntemleri (SVM, MLP) ve son teknoloji derin öğrenme mimarileri (MBA-Net, ABD-Net, RGA-Net) karşılaştırmalı olarak değerlendirilmiştir.
 
 ---
 
-## Dataset
+## Proje Özeti
+
+Bu proje, el görüntülerinden kişiyi tanımayı iki farklı yaklaşımla ele almaktadır:
+
+**Geleneksel ML Yaklaşımı:** MediaPipe ile 21 iskelet noktası çıkarılır, 75 geometrik özellik hesaplanır ve SVM / MLP ile sınıflandırma yapılır.
+
+**Derin Öğrenme Yaklaşımı:** Ham görüntüler ImageNet ön eğitimli ResNet-50 omurgası üzerine inşa edilmiş dikkat mekanizmalı mimarilerle (MBA-Net, ABD-Net, RGA-Net) doğrudan işlenir.
+
+---
+
+## Veri Seti
 
 **11k Hands Dataset** — [Kaggle](https://www.kaggle.com/datasets/shyambhu/hands-and-palm-images-dataset)
 
-| Property | Value |
-|----------|-------|
-| Total images | 11,076 |
-| Subjects | 190 |
-| Successful extractions | 10,765 (97.2%) |
-| Aspects | Dorsal (hand back) + Palmar (palm) |
+| Özellik | Değer |
+|---------|-------|
+| Toplam görüntü | 11.076 |
+| Kişi sayısı | 190 |
+| Başarılı çıkarım | 10.765 (%97.2) |
+| Görünüm türleri | Dorsal (el sırtı) + Palmar (avuç içi) |
+| Metadata | Yaş, cinsiyet, ten rengi, aksesuar, tırnak durumu |
 
 ---
 
-## Method
+## Geleneksel ML Yaklaşımı
 
-### 1. Landmark Extraction
+### 1. İskelet Çıkarımı (MediaPipe)
 
-MediaPipe Hand Landmarker detects **21 keypoints** per hand image.
+MediaPipe Hand Landmarker her görüntüden **21 anahtar nokta** tespit eder.
 
 ```
-         8   12  16  20      ← Fingertips
+         8   12  16  20      ← Parmak uçları
          7   11  15  19
     4    6   10  14  18
     3    5    9  13  17
     2         \ | /
-    1           0            ← WRIST
+    1           0            ← Bilek (WRIST)
 ```
 
-### 2. Normalization
+### 2. Normalizasyon
 
-To achieve scale and translation invariance:
-1. **Translation** — subtract WRIST (landmark 0) from all points
-2. **Scale** — divide all points by the WRIST→MIDDLE_MCP distance
+Ölçek ve konum bağımsızlığı için:
+1. **Öteleme:** Tüm noktalardan WRIST çıkarılır
+2. **Ölçekleme:** Tüm noktalar WRIST→ORTA_MCP mesafesine bölünür
 
-### 3. Feature Engineering (75 features)
+### 3. Özellik Mühendisliği (75 özellik)
 
-| Group | Description | Count |
-|-------|-------------|-------|
-| Finger lengths | Sum of segment lengths per finger | 5 |
-| Fingertip distances | Pairwise distances between all 5 tips | 10 |
-| Palm widths | Distances between MCP joints | 4 |
-| Length/width ratios | Finger length ÷ palm width | 5 |
-| PIP joint angles | Bending angle at middle joints | 4 |
-| Tip-to-wrist distances | Each fingertip distance to wrist | 5 |
-| **Raw landmarks (x,y)** | Normalized coordinates of all 21 points | **42** |
-| **Total** | | **75** |
+| Grup | Açıklama | Sayı |
+|------|----------|------|
+| Parmak uzunlukları | Her parmak için segment toplamı | 5 |
+| Parmak ucu mesafeleri | 5 ucun tüm ikili kombinasyonları | 10 |
+| Avuç genişlikleri | MCP eklemleri arası mesafeler | 4 |
+| Uzunluk/genişlik oranları | Parmak uzunluğu ÷ avuç genişliği | 5 |
+| PIP eklem açıları | Orta eklemlerdeki bükülme açısı | 4 |
+| Uç→bilek mesafeleri | Her parmak ucunun bilek uzaklığı | 5 |
+| **Ham landmark (x,y)** | 21 normalize noktanın koordinatları | **42** |
+| **Toplam** | | **75** |
 
-### 4. Classification
+### 4. Modeller ve Hiperparametre Optimizasyonu
 
-- **SVM** — RBF kernel, hyperparameters tuned with `GridSearchCV` (C × gamma, cv=3)
-- **MLP** — 3-layer network (256→128→64), Adam optimizer, early stopping
-- **Preprocessing** — `StandardScaler` fitted on training set only
+- **SVM** — RBF çekirdeği, GridSearchCV ile optimizasyon (C×gamma, cv=3)
+- **MLP** — 3 katmanlı ağ (256→128→64), Adam, erken durdurma
+- **Ön işleme** — Yalnızca eğitim setine fit edilen StandardScaler
 
-### 5. Biometric Evaluation (FAR / FRR / EER)
+### 5. Biyometrik Değerlendirme
 
-FAR and FRR are computed via a **centroid-based verification** scenario:
-- Each class centroid is computed from the training set
-- **Genuine score** = distance from probe to its own class centroid
-- **Impostor score** = distance from probe to other class centroids
-- 500 threshold values are swept to produce the FAR/FRR curve
-- **EER** (Equal Error Rate) is reported as the threshold-independent summary metric
+Centroid tabanlı doğrulama senaryosu:
+- Her sınıfın eğitim centroid'i hesaplanır
+- **Genuine skoru** = prob'un kendi sınıf centroid'ine uzaklığı
+- **Impostor skoru** = prob'un diğer sınıf centroid'lerine uzaklığı
+- 500 eşik değeri taranarak FAR/FRR eğrisi çizilir
+- **EER** eşik bağımsız özet metrik olarak raporlanır
 
----
+### Geleneksel ML Sonuçları
 
-## Experiments
+| Deney | Özellik | Accuracy | Macro F1 | EER |
+|-------|---------|----------|----------|-----|
+| Baseline SVM | 33 | %78.85 | %74.00 | %36.93 |
+| Baseline MLP | 33 | %75.94 | %71.20 | %37.07 |
+| SVM_tum | 75 | %91.89 | %89.67 | %36.56 |
+| MLP_tum | 75 | %86.78 | %83.32 | %36.56 |
+| SVM_dorsal | 75 | %91.58 | %88.53 | %28.52 |
+| MLP_dorsal | 75 | %83.91 | %78.78 | %28.52 |
+| **SVM_palmar** | **75** | **%93.03** | **%90.29** | **%27.49** |
+| MLP_palmar | 75 | %88.24 | %85.01 | %27.49 |
 
-Three separate experiments were run to analyze the effect of hand aspect:
+**En iyi geleneksel model: SVM_palmar — %93.03 Accuracy, %27.49 EER**
 
-| Experiment | Data | Subjects | Samples |
-|-----------|------|----------|---------|
-| `_tum` | All images | 189 | 10,765 |
-| `_dorsal` | Hand back only | 180 | 5,301 |
-| `_palmar` | Palm only | 184 | 5,355 |
-
----
-
-## Results
-
-### Full Results Table
-
-| Experiment | Features | Accuracy | Macro F1 | EER | Best Params |
-|-----------|---------|----------|----------|-----|-------------|
-| Baseline SVM | 33 | 78.85% | 74.00% | 36.93% | C=10, γ=scale |
-| Baseline MLP | 33 | 75.94% | 71.20% | 37.07% | — |
-| SVM_tum | 33 | 82.41% | 78.70% | 37.01% | C=100, γ=scale |
-| SVM_dorsal | 33 | 82.72% | 78.19% | 26.34% | C=100, γ=scale |
-| SVM_palmar | 33 | 87.12% | 83.58% | 27.11% | C=100, γ=scale |
-| SVM_tum | 75 | 91.89% | 89.67% | 36.56% | C=100, γ=0.01 |
-| MLP_tum | 75 | 86.78% | 83.32% | 36.56% | — |
-| SVM_dorsal | 75 | 91.58% | 88.53% | 28.52% | C=100, γ=0.01 |
-| MLP_dorsal | 75 | 83.91% | 78.78% | 28.52% | — |
-| **SVM_palmar** | **75** | **93.03%** | **90.29%** | **27.49%** | C=100, γ=scale |
-| MLP_palmar | 75 | 88.24% | 85.01% | 27.49% | — |
-
-**Best model: SVM_palmar (75 features) — 93.03% Accuracy, 27.49% EER**
-
-### Impact of Each Improvement
-
-| Improvement | Effect |
-|------------|--------|
-| Raw landmark coordinates (33 → 75 features) | **+9–10 pp** accuracy |
-| GridSearchCV (C=10 → C=100) | **+3.5 pp** accuracy |
-| Dorsal/Palmar split | EER **37% → 27%** (−10 pp) |
-
-### Key Findings
-
-- **Palmar > Dorsal**: Palm geometry is more discriminative for identity recognition. Palm-specific anatomical structures (joints, ridges) show more inter-person variation than the hand back.
-- **Raw landmarks matter**: Adding normalized (x,y) coordinates of all 21 landmarks alongside the 33 engineered features gave the largest single accuracy boost (+9–10 pp). Global hand shape captured by raw coordinates complements the local geometric summaries.
-- **SVM consistently outperforms MLP**: For a 75-dimensional geometric feature space, the RBF kernel generalizes better than a 3-layer MLP, likely due to the relatively small per-class sample count (~57 images/person).
-- **GridSearchCV finding**: All datasets converged on C=100. The tighter RBF kernel (γ=0.01 for dorsal/all, γ=scale for palmar) reflects the higher feature density needed to separate similar hand shapes.
+| Geliştirme | Etki |
+|-----------|------|
+| Ham landmark koordinatları (33→75 özellik) | Accuracy **+9–10 puan** |
+| GridSearchCV (C=10→C=100) | Accuracy **+3.5 puan** |
+| Dorsal/Palmar ayrımı | EER **%37→%27** (−10 puan) |
 
 ---
 
-## Output Plots
+## Derin Öğrenme Yaklaşımı
 
-All plots are saved in `output/plots/`.
+Ham görüntüler (224×224) ImageNet ön eğitimli **ResNet-50** omurgası üzerine inşa edilmiş üç farklı mimariyle işlenir. Eğitim: CrossEntropy + Triplet Loss, Adam optimizer, 30 epoch, T4 GPU (Google Colab).
 
-| File | Description |
-|------|-------------|
-| `confusion_matrix_SVM_palmar.png` | Confusion matrix — best model |
-| `confusion_matrix_MLP_palmar.png` | Confusion matrix — MLP palmar |
-| `far_frr_SVM_palmar.png` | FAR/FRR curve — best model |
-| `far_frr_SVM_tum.png` | FAR/FRR curve — all data SVM |
-| *(+ 8 more)* | All experiment variants |
+### MBA-Net — Multi-Branch Attention Network
+
+SE (Squeeze-and-Excitation) dikkat bloğu + global branch (GAP) + local branch (4 yatay şerit). Global ve local özellikler birleştirilip L2-normalize edilir.
+
+### ABD-Net — Attentive but Diverse Network
+
+CBAM (Channel + Spatial Attention) branch ve dikkat-içermeyen backbone branch. Diversity loss iki dalı birbirinden farklı özellikler öğrenmeye zorlar.
+
+### RGA-Net — Relation-Guided Attention Network
+
+Uzamsal öz-ilişki matrisi ile özellik haritaları üzerinde ilişki-rehberli dikkat. RGA modülü ResNet-50'nin layer3 ve layer4 çıktılarına uygulanır.
+
+### Derin Öğrenme Sonuçları (Palmar, 30 Epoch)
+
+| Model | Parametre | Rank-1 | Accuracy | EER |
+|-------|-----------|--------|----------|-----|
+| MBA-Net | 26.3M | %99.81 | %96.89 | %0.12 |
+| **ABD-Net** | **26.2M** | **%99.88** | **%99.69** | **%0.01** |
+| RGA-Net | 35.1M | — | %99.19* | — |
+
+*Epoch 21'de ölçülmüş değer, eğitim kesintiye uğramıştır.
 
 ---
 
-## Project Structure
+## Tüm Modeller Karşılaştırması
+
+| Model | Tür | Rank-1 / Accuracy | EER |
+|-------|-----|-------------------|-----|
+| SVM_palmar | Geleneksel ML | %93.03 | %27.49 |
+| MLP_palmar | Geleneksel ML | %88.24 | %27.49 |
+| MBA-Net | Derin Öğrenme | %99.81 | %0.12 |
+| **ABD-Net** | **Derin Öğrenme** | **%99.88** | **%0.01** |
+| RGA-Net | Derin Öğrenme | ~%99+ | — |
+
+Derin öğrenme mimarileri geleneksel ML'yi hem doğruluk hem de EER açısından belirgin biçimde geçmektedir.
+
+---
+
+## Proje Yapısı
 
 ```
-hand-geometry-biometric/
+📁 Yerel Pipeline (sıralı çalıştırılır)
+├── 01_veri_indir.py                          # kagglehub ile dataset indirme
+├── 02_mediapipe_ozellik_cikar.py             # MediaPipe landmark çıkarımı + 75 özellik
+├── 03_geleneksel_ml_egit.py                  # SVM/MLP/KNN/RF eğitim, FAR/FRR/EER, grafikler
+├── 04_landmark_gorsellestir.py               # Landmark anotasyon görselleştirme
 │
-├── 01_download_data.py       # Dataset download via kagglehub or manual instructions
-├── 02_extract_features.py    # MediaPipe landmark extraction + feature engineering
-├── 03_train_evaluate.py      # SVM/MLP training, GridSearchCV, FAR/FRR/EER, plots
-├── notes.md                  # Development log & analysis
-├── .gitignore
+📓 Colab Notebooks
+├── colab_odev_mediapipe_svm_mlp.ipynb        # Ödev: MediaPipe + SVM/MLP (uçtan uca)
+├── colab_derin_ogrenme_mbanet_abdnet_rganet.ipynb  # MBA-Net + ABD-Net + RGA-Net
+├── colab_abdnet_rganet.ipynb                 # ABD-Net + RGA-Net (Drive kayıt destekli)
 │
+🖼️ Sonuç Görselleri
+├── sonuc_egitim_mbanet_palmar.png            # MBA-Net eğitim eğrisi
+├── sonuc_egitim_abdnet_palmar.png            # ABD-Net eğitim eğrisi
+├── sonuc_far_frr_mbanet_palmar.png           # MBA-Net FAR/FRR grafiği
+├── sonuc_far_frr_abdnet_palmar.png           # ABD-Net FAR/FRR grafiği
+│
+📄 Dokümantasyon
+├── notes.md                                  # Geliştirme logu (her adımın detayı)
 └── output/
-    ├── results_summary.csv   # All experiment results
-    └── plots/                # Confusion matrices + FAR/FRR curves
+    ├── results_summary.csv                   # Geleneksel ML sonuçları
+    └── plots/                                # Tüm grafikler
 ```
 
 ---
 
-## Setup & Usage
+## Kurulum ve Kullanım
 
-### Requirements
+### Gereksinimler
 
 ```bash
 pip install mediapipe scikit-learn matplotlib seaborn kagglehub tqdm opencv-python numpy pandas scipy
 ```
 
-Python 3.10+ recommended. Tested on Python 3.12.
+Python 3.10+ önerilir.
 
-### Step 1 — Download Dataset
+### Yerel Pipeline
 
-**Option A (automatic):** Get your Kaggle API token from kaggle.com → Settings → Create New Token, place `kaggle.json` at `~/.kaggle/kaggle.json`, then:
+**Adım 1 — Dataset İndir**
+
+Kaggle API token'ı için: kaggle.com → Settings → API → Create New Token
 
 ```bash
-python 01_download_data.py
+python 01_veri_indir.py
 ```
 
-**Option B (manual):** Download from [Kaggle](https://www.kaggle.com/datasets/shyambhu/hands-and-palm-images-dataset) and extract to `data/11k_hands/` so that `HandInfo.csv` is directly inside.
-
-### Step 2 — Download MediaPipe Model
+**Adım 2 — MediaPipe Modelini İndir**
 
 ```bash
 python -c "import urllib.request; urllib.request.urlretrieve('https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', 'hand_landmarker.task')"
 ```
 
-### Step 3 — Extract Features
+**Adım 3 — Özellik Çıkar**
 
 ```bash
-python 02_extract_features.py
+python 02_mediapipe_ozellik_cikar.py
 ```
 
-Processes ~11k images, outputs `output/features.csv` with 75 features per image. Takes ~5–10 minutes on CPU.
+~11k görüntü işlenir, `output/features.csv` üretilir. CPU'da ~5–10 dakika.
 
-### Step 4 — Train & Evaluate
+**Adım 4 — Eğit ve Değerlendir**
 
 ```bash
-python 03_train_evaluate.py
+python 03_geleneksel_ml_egit.py
 ```
 
-Runs 6 experiments (SVM+MLP × all/dorsal/palmar), prints metrics, saves plots and `output/results_summary.csv`. Takes ~20–30 minutes (GridSearchCV).
+SVM+MLP × tüm/dorsal/palmar deneyleri çalışır, metrikler ve grafikler üretilir. ~20–30 dakika (GridSearchCV).
+
+### Colab Notebooks
+
+Derin öğrenme modelleri ve uçtan uca ödev pipeline'ı için Colab notebook'larını Google Colab'a yükleyin, T4 GPU seçin, Kaggle token'ınızı ilgili hücreye yapıştırın ve sırayla çalıştırın.
 
 ---
 
-## Course
+## Ders
 
-Biometric Systems — Computer Engineering
+Biyometrik Sistemler — Bilgisayar Mühendisliği
